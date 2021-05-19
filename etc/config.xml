@@ -1,0 +1,14 @@
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <payment>
+            <deco>
+                <active>1</active>
+                <model>Riskified\Deco\Model\Payment\Deco</model>
+                <order_status>processing</order_status>
+                <title>Deco</title>
+                <allowspecific>0</allowspecific>
+                <group>offline</group>
+            </deco>
+        </payment>
+    </default>
+</config>
