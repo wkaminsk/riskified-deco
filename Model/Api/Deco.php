@@ -5,9 +5,9 @@ namespace Riskified\Deco\Model\Api;
 
 use Magento\Framework\Event\ManagerInterface;
 use Riskified\Common\Signature\HttpDataSignature;
-//use Riskified\Decider\Model\Resource\Checkout;
 use Riskified\Deco\Provider\ConfigProvider;
 use Riskified\OrderWebhook\Model\Order;
+use Riskified\OrderWebhook\Model\Checkout;
 use Riskified\OrderWebhook\Transport\CurlTransport;
 
 class Deco
@@ -22,11 +22,6 @@ class Deco
      */
     private $eventManager;
 
-//    /**
-//     * @var Checkout
-//     */
-//    private $checkoutResource;
-
     /**
      * @var ConfigProvider
      */
@@ -35,7 +30,6 @@ class Deco
     public function __construct(ManagerInterface $eventManager, ConfigProvider $configProvider)
     {
         $this->eventManager = $eventManager;
-//        $this->checkoutResource = $checkoutResource;
         $this->configProvider = $configProvider;
     }
 
@@ -54,12 +48,7 @@ class Deco
             switch ($action) {
                 case static::ACTION_ELIGIBLE:
                     $order = $this->load($quote);
-                    $a = ["order" => [
-                        'status' => 'eligible',
-                        'description' => 'test'
-                    ]];
-                    $a = json_encode($a);
-                    $response = json_decode($a);//$transport->eligible($order);
+                    $response = $transport->isEligible($order);
                     break;
                 case static::ACTION_OPT_IN:
                     $order = $this->load($quote);
@@ -68,7 +57,7 @@ class Deco
             }
 
             $this->eventManager->dispatch(
-                '',
+                'riskified_decider_post_eligible_success',
                 [
                     'order' => $quote,
                     'action' => $action,
@@ -97,12 +86,12 @@ class Deco
      *
      * @return Order
      */
-    private function load($quote): Order
+    private function load($quote): Checkout
     {
         $order_array = array(
-            'id' => 1,//$this->checkoutResource->getCheckoutId($quote->getId()),
+            $quote->getId(),
         );
 
-        return new \Riskified\OrderWebhook\Model\Checkout(array_filter($order_array, 'strlen'));
+        return new Checkout(array_filter($order_array, 'strlen'));
     }
 }

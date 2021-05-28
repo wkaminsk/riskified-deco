@@ -12,7 +12,6 @@ if ($block->getDecoViewModel()->isRiskifiedEnabled()): ?>
             'domReady!'
         ], function($, eligible) {
             $(document).on('paymentFail', function (e) {
-                console.log('test123');
                 eligible.paymentFail(
                     "<?= $block->getDecoViewModel()->getButtonColor() ?>",
                     "<?= $block->getDecoViewModel()->getButtonTextColor() ?>",

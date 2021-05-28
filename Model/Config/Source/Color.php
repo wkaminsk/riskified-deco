@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Riskified\Deco\Config\Source;
+namespace Riskified\Deco\Model\Config\Source;
 
 use Magento\Backend\Block\Template\Context;
 use Magento\Config\Block\System\Config\Form\Field;

@@ -41,11 +41,6 @@ class OptIn extends Action implements HttpPostActionInterface
     private $deco;
 
     /**
-     * @var DirectpostSessionModel
-     */
-    private $directPostSessionModel;
-
-    /**
      * @var OrderInterfaceFactory
      */
     private $orderFactory;
@@ -89,7 +84,6 @@ class OptIn extends Action implements HttpPostActionInterface
         Session $checkoutSession,
         Log $logger,
         Deco $deco,
-        DirectpostSessionModel $directPostSessionModel,
         OrderInterfaceFactory $orderFactory,
         CartRepositoryInterface $quoteRepository,
         OrderApi $orderApi,
@@ -102,7 +96,6 @@ class OptIn extends Action implements HttpPostActionInterface
         $this->checkoutSession = $checkoutSession;
         $this->logger = $logger;
         $this->deco = $deco;
-        $this->directPostSessionModel = $directPostSessionModel;
         $this->orderFactory = $orderFactory;
         $this->quoteRepository = $quoteRepository;
         $this->orderApi = $orderApi;
@@ -161,34 +154,36 @@ class OptIn extends Action implements HttpPostActionInterface
      */
     private function processOrder(string $paymentMethod): void
     {
-        if ($paymentMethod === 'authorizenet_directpost') {
-            $incrementId = $this->directPostSessionModel->getLastOrderIncrementId();
-            if ($incrementId) {
-                $order = $this->orderFactory->create()->loadByIncrementId($incrementId);
-                if ($order->getId()) {
-                    try {
-                        $quote = $this->quoteRepository->get($order->getQuoteId());
-                        $quote->setIsActive(0);
-                        $this->quoteRepository->save($quote);
-                        $this->orderApi->unCancelOrder(
-                            $order,
-                            __(
-                                'Payment by %1 has been declined. Order processed by Deco Payments',
-                                $order->getPayment()->getMethod()
-                            )
-                        );
-                        $order->getPayment()->setMethod('deco');
-                        $this->orderRepository->save($order);
+        if ($paymentMethod !== 'authorizenet_directpost') {
+            return;
+        }
 
-                        if ($this->riskifiedConfig->getConfigStatusControlActive()) {
-                            $state = Order::STATE_PROCESSING;
-                            $status = $this->riskifiedOrderConfig->getOnHoldStatusCode();
-                            $order->setState($state)->setStatus($status);
-                            $order->addStatusHistoryComment('Order submitted to Riskified', false);
-                        }
-                    } catch (NoSuchEntityException $e) {
-                        $this->logger->logException($e);
+        $incrementId = $this->checkoutSession->getLastRealOrderId();
+        if ($incrementId) {
+            $order = $this->orderFactory->create()->loadByIncrementId($incrementId);
+            if ($order->getId()) {
+                try {
+                    $quote = $this->quoteRepository->get($order->getQuoteId());
+                    $quote->setIsActive(0);
+                    $this->quoteRepository->save($quote);
+                    $this->orderApi->unCancelOrder(
+                        $order,
+                        __(
+                            'Payment by %1 has been declined. Order processed by Deco Payments',
+                            $order->getPayment()->getMethod()
+                        )
+                    );
+                    $order->getPayment()->setMethod('deco');
+                    $this->orderRepository->save($order);
+
+                    if ($this->riskifiedConfig->getConfigStatusControlActive()) {
+                        $state = Order::STATE_PROCESSING;
+                        $status = $this->riskifiedOrderConfig->getOnHoldStatusCode();
+                        $order->setState($state)->setStatus($status);
+                        $order->addStatusHistoryComment('Order submitted to Riskified', false);
                     }
+                } catch (NoSuchEntityException $e) {
+                    $this->logger->logException($e);
                 }
             }
         }

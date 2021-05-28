@@ -24,42 +24,43 @@ define([
             }
         });
         fullScreenLoader.stopLoader();
-    }
+    };
+    function triggerIsEligible()
+    {
+        storage.post(
+            'deco/checkout/isEligible',
+            JSON.stringify({
+                quote_id: quote.getQuoteId()
+            }),
+            true
+        ).done(function (result) {
+            if (result.status === 'eligible') {
+                composeDecoPaymentForm();
+            }
+        });
+    };
+    function composeDecoPaymentForm()
+    {
+        $('.payment-method._active #deco-container').html("<div id='deco-widget'></div>");
+        window.drawDecoWidget(() => {
+            return optInCall();
+        }, {
+            buttonColor: buttonColor,
+            buttonText: buttonTextColor,
+            logoUrl: logoUrl
+        });
+
+        $("#deco-main-button").click(function(e){
+            e.preventDefault();
+        });
+    };
 
     return {
         paymentFail: function(buttonColor, buttonTextColor, logoUrl) {
             fullScreenLoader.startLoader();
-
-            if ($('.payment-methods input[type="radio"]:checked').val() === 'authorizenet_directpost') {
-                storage.post(
-                    'deco/checkout/checkoutDenied',
-                    JSON.stringify({
-                        quote_id: quote.getQuoteId()
-                    }),
-                    true
-                );
-            }
-
-            storage.post(
-                'deco/checkout/isEligible',
-                JSON.stringify({
-                    quote_id: quote.getQuoteId()
-                }),
-                true
-            ).done(function (result) {
-                if (result.status === 'eligible') {
-                    $('.payment-method._active #deco-container').html("<div id='deco-widget'></div>");
-                    window.drawDecoWidget(() => {
-                        return optInCall();
-                    }, {
-                        buttonColor: buttonColor,
-                        buttonText: buttonTextColor,
-                        logoUrl: logoUrl
-                    });
-                    $("#deco-main-button").click(function(e){e.preventDefault();});
-                }
-            });
+            triggerIsEligible();
             fullScreenLoader.stopLoader();
-        }
+        },
+
     }
 });
