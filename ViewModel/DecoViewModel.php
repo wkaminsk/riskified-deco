@@ -5,6 +5,7 @@ namespace Riskified\Deco\ViewModel;
 
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
+use Magento\Store\Model\ScopeInterface as ScopeInterface;
 use Riskified\Deco\Provider\ConfigProvider;
 
 class DecoViewModel implements ArgumentInterface
@@ -34,6 +35,16 @@ class DecoViewModel implements ArgumentInterface
     public function isRiskifiedEnabled(): bool
     {
         return $this->configProvider->isRiskifiedEnabled();
+    }
+
+    /**
+     * @return string
+     */
+    public function getShopDomain(): string
+    {
+        return $this->scopeConfig->getValue(
+            'riskified/riskified/domain'
+        );
     }
 
     /**

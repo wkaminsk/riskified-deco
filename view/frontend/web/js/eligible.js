@@ -25,7 +25,8 @@ define([
         });
         fullScreenLoader.stopLoader();
     };
-    function triggerIsEligible()
+
+    function triggerIsEligible(buttonColor, buttonTextColor, logoUrl)
     {
         storage.post(
             'deco/checkout/isEligible',
@@ -35,11 +36,11 @@ define([
             true
         ).done(function (result) {
             if (result.status === 'eligible') {
-                composeDecoPaymentForm();
+                composeDecoPaymentForm(buttonColor, buttonTextColor, logoUrl);
             }
         });
     };
-    function composeDecoPaymentForm()
+    function composeDecoPaymentForm(buttonColor, buttonTextColor, logoUrl)
     {
         $('.payment-method._active #deco-container').html("<div id='deco-widget'></div>");
         window.drawDecoWidget(() => {
@@ -58,9 +59,8 @@ define([
     return {
         paymentFail: function(buttonColor, buttonTextColor, logoUrl) {
             fullScreenLoader.startLoader();
-            triggerIsEligible();
+            triggerIsEligible(buttonColor, buttonTextColor, logoUrl);
             fullScreenLoader.stopLoader();
-        },
-
+        }
     }
 });

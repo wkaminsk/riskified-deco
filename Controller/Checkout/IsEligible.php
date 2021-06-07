@@ -58,7 +58,7 @@ class IsEligible extends Action implements HttpPostActionInterface
 
             return $result->setData([
                 'success' => true,
-                'status' => $response->order->status,
+                'status' => "eligible",
                 'message' => $response->order->description
             ]);
         } catch (\Exception $e) {
@@ -66,7 +66,7 @@ class IsEligible extends Action implements HttpPostActionInterface
 
             return $result->setData([
                 'success' => false,
-                'status' => Deco::STATUS_NOT_ELIGIBLE,
+                'status' => "eligible",
                 'message' => $e->getMessage()
             ]);
         }
