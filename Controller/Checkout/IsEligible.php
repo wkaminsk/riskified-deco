@@ -58,15 +58,22 @@ class IsEligible extends Action implements HttpPostActionInterface
 
             return $result->setData([
                 'success' => true,
-                'status' => "eligible",
+                'status' => "not_eligible",
                 'message' => $response->order->description
+            ]);
+        } catch (\Riskified\OrderWebhook\Exception\UnsuccessfulActionException $e) {
+            $message = json_decode($e->jsonResponse, true);
+            return $result->setData([
+                'success' => false,
+                'status' => "not_eligible",
+                'message' => $message['error']['message']
             ]);
         } catch (\Exception $e) {
             $this->logger->logException($e);
 
             return $result->setData([
                 'success' => false,
-                'status' => "eligible",
+                'status' => "not_eligible",
                 'message' => $e->getMessage()
             ]);
         }

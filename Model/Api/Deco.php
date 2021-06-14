@@ -48,11 +48,11 @@ class Deco
             switch ($action) {
                 case static::ACTION_ELIGIBLE:
                     $order = $this->load($quote);
-                    $response = $transport->isEligible($order);
+                    $response = $transport->eligible($order);
                     break;
                 case static::ACTION_OPT_IN:
                     $order = $this->load($quote);
-                    $response = $transport->optIn($order);
+                    $response = $transport->opt_in($order);
                     break;
             }
 
@@ -89,7 +89,7 @@ class Deco
     private function load($quote): Checkout
     {
         $order_array = array(
-            $quote->getId(),
+            'id' => $quote->getId(),
         );
 
         return new Checkout(array_filter($order_array, 'strlen'));
