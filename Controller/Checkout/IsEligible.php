@@ -10,6 +10,7 @@ use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\Controller\ResultFactory;
 use Riskified\Decider\Model\Api\Order\Log;
 use Riskified\Deco\Model\Api\Deco;
+use Riskified\Decider\Model\Api\Api as RiskifiedApi;
 
 class IsEligible extends Action implements HttpPostActionInterface
 {
@@ -27,6 +28,7 @@ class IsEligible extends Action implements HttpPostActionInterface
      * @var Deco
      */
     private $deco;
+    private $api;
 
     /**
      * @param Session $checkoutSession
@@ -37,22 +39,27 @@ class IsEligible extends Action implements HttpPostActionInterface
         Context $context,
         Session $checkoutSession,
         Log $logger,
+        RiskifiedApi $api,
         Deco $deco
     ) {
         parent::__construct($context);
         $this->checkoutSession = $checkoutSession;
         $this->logger = $logger;
         $this->deco = $deco;
+        $this->api = $api;
     }
 
     public function execute()
     {
         $result = $this->resultFactory->create(ResultFactory::TYPE_JSON);
-
+        $this->api->initSdk();
         try {
-            $this->logger->log('Deco isEligible request, quote_id: ' . $this->checkoutSession->getQuoteId());
+            $this->logger->log('Deco isEligible request, quote_id: ' . $this->checkoutSession->getId());
+            $postData = json_decode(file_get_contents('php://input'), true);
+            $quote = $this->checkoutSession->getQuote();
+            $quote->setCustomerEmail($postData['email']);
             $response = $this->deco->post(
-                $this->checkoutSession->getQuote(),
+                $quote,
                 Deco::ACTION_ELIGIBLE
             );
 
@@ -68,7 +75,8 @@ class IsEligible extends Action implements HttpPostActionInterface
                 'success' => false,
                 'status' => Deco::STATUS_NOT_ELIGIBLE,
                 'message' => $e->getMessage()
-            ]);
+            ])
+            ->setHttpResponseCode(500);
         }
     }
 }

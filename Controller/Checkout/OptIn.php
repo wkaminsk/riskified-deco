@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 namespace Riskified\Deco\Controller\Checkout;
 
-use Magento\Authorizenet\Model\Directpost\Session as DirectpostSessionModel;
 use Magento\Checkout\Model\Session;
+use Magento\Framework\App\Action\Context;
 use Magento\Framework\App\Action\Action;
 use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\Controller\ResultFactory;
@@ -13,9 +13,11 @@ use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Quote\Api\CartManagementInterface;
 use Magento\Quote\Api\CartRepositoryInterface;
+use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderInterfaceFactory;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use Magento\Sales\Model\Order;
+use phpDocumentor\Reflection\DocBlock\Tags\Var_;
 use Riskified\Decider\Model\Api\Api;
 use Riskified\Decider\Model\Api\Config;
 use Riskified\Decider\Model\Api\Log;
@@ -79,8 +81,10 @@ class OptIn extends Action implements HttpPostActionInterface
      * @var ManagerInterface
      */
     private $eventManager;
+    private $quoteIdMaskFactory;
 
     public function __construct(
+        Context $context,
         Session $checkoutSession,
         Log $logger,
         Deco $deco,
@@ -91,6 +95,7 @@ class OptIn extends Action implements HttpPostActionInterface
         Config $riskifiedConfig,
         OrderConfig $riskifiedOrderConfig,
         CartManagementInterface $quoteManagement,
+        \Magento\Quote\Model\QuoteIdMaskFactory $quoteIdMaskFactory,
         ManagerInterface $eventManager
     ) {
         $this->checkoutSession = $checkoutSession;
@@ -104,6 +109,9 @@ class OptIn extends Action implements HttpPostActionInterface
         $this->riskifiedOrderConfig = $riskifiedOrderConfig;
         $this->quoteManagement = $quoteManagement;
         $this->eventManager = $eventManager;
+        $this->quoteIdMaskFactory = $quoteIdMaskFactory;
+
+        parent::__construct($context);
     }
 
     public function execute()
@@ -111,28 +119,32 @@ class OptIn extends Action implements HttpPostActionInterface
         $result = $this->resultFactory->create(ResultFactory::TYPE_JSON);
 
         try {
-            $this->logger->log('Deco OptIn request, quote_id: ' . $this->checkoutSession->getQuoteId());
+
+            $postData = json_decode(file_get_contents('php://input'), true);
+            $quote = $this->checkoutSession->getQuote();
+            $id = $postData['quote_id'];
+
+            if (!$quote || !$quote->getId()) {
+                if (is_numeric($id)) {
+                    $quote = $this->quoteRepository->getActive($id);
+                } else {
+                    $quoteIdMask = $this->quoteIdMaskFactory->create()->load($id, 'masked_id');
+                    $quote = $this->cartRepository->getActive($quoteIdMask->getQuoteId());
+                }
+            }
+
+            $this->logger->log('Deco OptIn request, quote_id: ' . $quote->getId());
+            $quote->setCustomerEmail($postData['email']);
+            $quote->getCustomer()->setEmail($postData['email']);
 
             $response = $this->deco->post(
-                $this->checkoutSession->getQuote(),
+                $quote,
                 Deco::ACTION_OPT_IN
             );
 
-            if ($response->order->status === Deco::ACTION_OPT_IN) {
-                if (!$this->checkoutSession->getLastRealOrder()->getQuoteId() !== $this->checkoutSession->getQuote()->getId()) {
-                    $this->prepareOrder();
-                }
-                $this->processOrder($this->checkoutSession->getQuote()->getPayment()->getMethod());
-
-                $this->orderApi->post(
-                    $this->checkoutSession->getLastRealOrder(),
-                    Api::ACTION_CREATE
-                );
-            }
-
             return $result->setData([
                 'success' => true,
-                'status' => $response->order->status,
+                'status' => $response->order->status == Deco::ACTION_OPT_IN,
                 'message' => $response->order->description
             ]);
         } catch (\Exception $e) {
@@ -152,39 +164,31 @@ class OptIn extends Action implements HttpPostActionInterface
      * @return void
      * @throws \Exception
      */
-    private function processOrder(string $paymentMethod): void
+    private function processOrder(OrderInterface $order): void
     {
-        if ($paymentMethod !== 'authorizenet_directpost') {
-            return;
-        }
+        if ($order->getId()) {
+            try {
+                $quote = $this->quoteRepository->get($order->getQuoteId());
+                $quote->setIsActive(0);
+                $this->quoteRepository->save($quote);
+                $this->orderApi->unCancelOrder(
+                    $order,
+                    __(
+                        'Payment by %1 has been declined. Order processed by Deco Payments',
+                        $order->getPayment()->getMethod()
+                    )
+                );
+                $order->getPayment()->setMethod('deco');
+                $this->orderRepository->save($order);
 
-        $incrementId = $this->checkoutSession->getLastRealOrderId();
-        if ($incrementId) {
-            $order = $this->orderFactory->create()->loadByIncrementId($incrementId);
-            if ($order->getId()) {
-                try {
-                    $quote = $this->quoteRepository->get($order->getQuoteId());
-                    $quote->setIsActive(0);
-                    $this->quoteRepository->save($quote);
-                    $this->orderApi->unCancelOrder(
-                        $order,
-                        __(
-                            'Payment by %1 has been declined. Order processed by Deco Payments',
-                            $order->getPayment()->getMethod()
-                        )
-                    );
-                    $order->getPayment()->setMethod('deco');
-                    $this->orderRepository->save($order);
-
-                    if ($this->riskifiedConfig->getConfigStatusControlActive()) {
-                        $state = Order::STATE_PROCESSING;
-                        $status = $this->riskifiedOrderConfig->getOnHoldStatusCode();
-                        $order->setState($state)->setStatus($status);
-                        $order->addStatusHistoryComment('Order submitted to Riskified', false);
-                    }
-                } catch (NoSuchEntityException $e) {
-                    $this->logger->logException($e);
+                if ($this->riskifiedConfig->getConfigStatusControlActive()) {
+                    $state = Order::STATE_PROCESSING;
+                    $status = $this->riskifiedOrderConfig->getOnHoldStatusCode();
+                    $order->setState($state)->setStatus($status);
+                    $order->addStatusHistoryComment('Order submitted to Riskified', false);
                 }
+            } catch (NoSuchEntityException $e) {
+                $this->logger->logException($e);
             }
         }
     }
@@ -192,11 +196,11 @@ class OptIn extends Action implements HttpPostActionInterface
     /**
      * @return void
      */
-    private function prepareOrder(): void
+    private function prepareOrder($quote): OrderInterface
     {
-        $previousMethod = $this->checkoutSession->getQuote()->getPayment()->getMethod();
-        $this->checkoutSession->getQuote()->getPayment()->setMethod('deco');
-        $order = $this->quoteManagement->submit($this->checkoutSession->getQuote());
+        $previousMethod = $quote->getPayment()->getMethod();
+        $quote->getPayment()->setMethod('deco');
+        $order = $this->quoteManagement->submit($quote);
 
         if (is_null($order)) {
             throw new LocalizedException(
@@ -219,8 +223,8 @@ class OptIn extends Action implements HttpPostActionInterface
         }
         $this->orderRepository->save($order);
 
-        $this->checkoutSession->setLastQuoteId($this->checkoutSession->getQuote()->getId());
-        $this->checkoutSession->setLastSuccessQuoteId($this->checkoutSession->getQuote()->getId());
+        $this->checkoutSession->setLastQuoteId($quote->getId());
+        $this->checkoutSession->setLastSuccessQuoteId($quote->getId());
         $this->checkoutSession->setLastOrderId($order->getId());
         $this->checkoutSession->setLastRealOrderId($order->getIncrementId());
         $this->checkoutSession->setLastOrderStatus($order->getStatus());
@@ -229,8 +233,10 @@ class OptIn extends Action implements HttpPostActionInterface
             'checkout_submit_all_after',
             [
                 'order' => $order,
-                'quote' => $this->checkoutSession->getQuote()
+                'quote' => $quote
             ]
         );
+
+        return $order;
     }
 }

@@ -12,24 +12,16 @@ if ($block->getDecoViewModel()->isRiskifiedEnabled()): ?>
             'domReady!'
         ], function($, eligible) {
             $(document).on('paymentFail', function (e) {
-                eligible.paymentFail(
-                    "<?= $block->getDecoViewModel()->getButtonColor() ?>",
-                    "<?= $block->getDecoViewModel()->getButtonTextColor() ?>",
-                    "<?= $block->getDecoViewModel()->getLogoUrl() ?>"
-                );
+                <?php if ($block->getDecoViewModel()->isEnabled()): ?>
+                    $.getScript('https://sandboxapp.decopayments.com/be/widget/widget.js?shop_url=<?php echo $block->getDecoViewModel()->getShopDomain(); ?>&session_id=<?php echo $block->getDecoViewModel()->getSessionId(); ?>', function( data, textStatus, jqxhr ) {
+                        eligible.paymentFail(
+                            "<?= $block->getDecoViewModel()->getButtonColor() ?>",
+                            "<?= $block->getDecoViewModel()->getButtonTextColor() ?>",
+                            "<?= $block->getDecoViewModel()->getLogoUrl() ?>"
+                        );
+                    });
+                <?php endif; ?> 
             });
         });
     </script>
-    <?php if ($block->getDecoViewModel()->isEnabled()): ?>
-        <script>
-            (function (window, document) {
-                var loader = function() {
-                    var script = document.createElement("script"), tag = document.getElementsByTagName("script")[0];
-                    script.src = 'https://sandboxapp.decopayments.com/be/widget/widget.js?shop_url=<?php echo $block->getShopDomain(); ?>';
-                    tag.parentNode.insertBefore(script, tag);
-                };
-                window.addEventListener ? window.addEventListener("load", loader, false) : window.attachEvent("onload", loader);
-            })(window, document);
-        </script>
-    <?php endif; ?>
 <?php endif; ?>

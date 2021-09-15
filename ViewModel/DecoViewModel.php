@@ -18,14 +18,19 @@ class DecoViewModel implements ArgumentInterface
      * @var ScopeConfigInterface
      */
     private $scopeConfig;
+    private $customerSession;
 
     /**
      * @param ConfigProvider $configProvider
      */
-    public function __construct(ConfigProvider $configProvider, ScopeConfigInterface $scopeConfig)
-    {
+    public function __construct(
+        ConfigProvider $configProvider, 
+        ScopeConfigInterface $scopeConfig,
+        \Magento\Customer\Model\Session $customerSession
+    ) {
         $this->configProvider = $configProvider;
         $this->scopeConfig = $scopeConfig;
+        $this->customerSession = $customerSession;
     }
 
     /**
@@ -42,6 +47,11 @@ class DecoViewModel implements ArgumentInterface
     public function isEnabled(): bool
     {
         return $this->configProvider->isDecoEnabled();
+    }
+
+    public function getSessionId(): string
+    {
+        return $this->customerSession->getSessionId();
     }
 
     /**
@@ -66,5 +76,12 @@ class DecoViewModel implements ArgumentInterface
     public function getLogoUrl(): ?string
     {
         return $this->scopeConfig->getValue(ConfigProvider::XML_PATH_DECO_LOGO_URL);
+    }
+
+    public function getShopDomain(): string
+    {
+        return $this->scopeConfig->getValue(
+            'riskified/riskified/domain'
+        );
     }
 }
