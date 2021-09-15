@@ -88,11 +88,4 @@ class DecoViewModel implements ArgumentInterface
     {
         return $this->scopeConfig->getValue(ConfigProvider::XML_PATH_DECO_LOGO_URL);
     }
-
-    public function getShopDomain(): string
-    {
-        return $this->scopeConfig->getValue(
-            'riskified/riskified/domain'
-        );
-    }
 }
